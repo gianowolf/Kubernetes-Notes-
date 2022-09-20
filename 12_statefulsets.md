@@ -235,3 +235,51 @@ tkb-sts 0.3 14s
 kubectl get pvc
 ```
 
+- Each PVC is created for each StatefulSet Pod replica.
+- the name of each PVC is based on the name of the StatefulSet and the Pod associated with
+  - tkb-sts-0 <> webroot-tkb-sts-0
+- The StatefulSet PODs are headless Service so we should one DNS SRV Record for each pod.
+
+### DNS and Peer Discovery
+
+- By default K8s places all objects within ```cluster.local``` DNS subdomain
+- Within that domain, K8s constructurs subdomains as:
+  - ```<object-name>.<service-name>.<namespace>.svc.cluster.local
+
+```sh
+# Testing
+kubectl apply -f jump-pod.yml # Pod with DNS dig utility pre-installed
+kubectl exec -it jump-pod --bash
+
+# as root
+dig SRV service-name.namespace.svc.cluster.local
+# Returns fully qualified DNS names of each Pod
+```
+
+## Scaling StatefulSets
+
+- Scaling up -> a Pod and a PVC is created
+- Scaling down -> Pod is terminated but the PVC is not.
+  - Future scale-up opertations only need to create a new Pod, then is connected to the Surviving PVC
+  - This is to protect the resiliency of the app and integrity of any data
+
+## StatefulSet Rollouts
+
+- Stateful Sets support rolling updates.
+
+1. Update the image in the YAML
+2. re-post to the API server
+3. is Authenticated and authorized
+4. Controller replaces old Pods with new ones.
+5. Controller waits for each new Pod to be running and ready
+  
+For more info run ```kubectl explain sts.spec.updateStrategy```.
+
+## Deleting StatefulSets
+
+1. Scale StatefulSet to 0 replicas and confirm the operation ```kubectl scale sts tkb-sts --replicas=0```
+2. ```kubectl get sts tkb-sts```
+3. ```kubectl delete sts tkb-sts```
+4. ```kubectl delete -f sts.yml```
+
+At this point SS is deleted, but volumes, StorageClass and headless Service still exists and should be deleted manually.
